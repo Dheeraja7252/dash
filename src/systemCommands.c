@@ -31,6 +31,7 @@ void backgroundProc(char **argv, int argc) {
         return;
     }
     if(pid == 0) {
+        setpgid(0, 0);
         if(execvp(argv[0], argv) < 0) {
             printf("%s: command not found\n", argv[0]);
             exitShell(1);

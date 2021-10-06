@@ -26,7 +26,6 @@ void pinfo(char *argv[], int argc) {
         return;
     }
 
-    printf("pid -> %d\n", getpid());
     display_pinfo(getpid());
 }
 
