@@ -12,6 +12,14 @@
 #include "pinfo.h"
 #include "systemCommands.h"
 #include "history.h"
+#include "sig.h"
+
+void resetIO(int saveInFD, int saveOutFD) {
+    dup2(saveInFD, STDIN_FILENO);
+    dup2(saveOutFD, STDOUT_FILENO);
+    close(saveInFD);
+    close(saveOutFD);
+}
 
 vectorString tokenize(char *str, char delim[]) {
     char *savePtr = NULL;
@@ -26,15 +34,6 @@ vectorString tokenize(char *str, char delim[]) {
 }
 
 void parseInput(char *inp) {
-    //    printf("Parsing input: %s", inp);
-    //    char *savePtr = NULL;
-    //    char *command;
-    //    command = strtok_r(inp, ";", &savePtr);
-    //    while(command != NULL) {
-    //        parseCommand(command);
-    //        command = strtok_r(NULL, ";", &savePtr);
-    //    }
-
     vectorString vec = tokenize(inp, ";");
     for (int i = 0; i < vec.size; i++) {
         parseCommand(vec.vector[i]);
@@ -43,16 +42,6 @@ void parseInput(char *inp) {
 }
 
 void parseCommand(char *command) {
-    //    printf("Parsing command: %s", command);
-    //    char *savePtr = NULL;
-    //    char *token;
-    //    vectorString vec = init_vectorString();
-    //    token = strtok_r(command, " \n\t", &savePtr);
-    //    while(token != NULL) {
-    //        pushbackString(&vec, token);
-    //        token = strtok_r(NULL, " \n\t", &savePtr);
-    //    }
-
     vectorString vec = tokenize(command, " \n\t");
     //    pushbackString(&vec, (char *) NULL);
     //    execute(vec.vector, vec.size - 1);
@@ -71,7 +60,7 @@ void parsePipeline(char *argv[], int argc) {
         return;
     }
 
-    // handle this
+    // implement pipeline
 }
 
 // TODO:
@@ -108,12 +97,13 @@ int parseRedir(char *argv[], int argc) {
     if (indIn != -1) {
         if (indIn == argc - 1) {
             fprintf(stderr, "Error: expected token after >\n");
+            resetIO(saveInFD, saveOutFD);
             return 1;
         }
         int fd = open(argv[indIn + 1], O_RDONLY);
         if (fd == -1) {
             perror("error opening input file");
-            // reset io
+            resetIO(saveInFD, saveOutFD);
             return 1;
         }
         dup2(fd, STDIN_FILENO);
@@ -123,6 +113,7 @@ int parseRedir(char *argv[], int argc) {
     if (indOut != -1) {
         if (indOut == argc - 1) {
             fprintf(stderr, "Error: expected token after %s \n", argv[indOut]);
+            resetIO(saveInFD, saveOutFD);
             return 1;
         }
         int fd;
@@ -132,6 +123,7 @@ int parseRedir(char *argv[], int argc) {
             fd = open(argv[indOut + 1], O_WRONLY | O_APPEND | O_CREAT, 0644);
         if (fd == -1) {
             perror("error opening output file");
+            resetIO(saveInFD, saveOutFD);
             return 1;
         }
         dup2(fd, STDOUT_FILENO);
@@ -141,10 +133,7 @@ int parseRedir(char *argv[], int argc) {
     pushbackString(&vec, NULL);
     execute(vec.vector, vec.size - 1);
 
-    dup2(saveInFD, STDIN_FILENO);
-    dup2(saveOutFD, STDOUT_FILENO);
-    close(saveInFD);
-    close(saveOutFD);
+    resetIO(saveInFD, saveOutFD);
     return 0;
 }
 
@@ -179,10 +168,13 @@ void execute(char *argv[], int argc) {
         history(argv, argc);
         return;
     }
+    if (strcmp(argv[0], "sig") == 0) {
+        sig(argv, argc);
+        return;
+    }
     if (strcmp(argv[0], "exit") == 0) {
         exitShell(0);
         return;
     }
-    //
     systemCommand(argv, argc);
 }
