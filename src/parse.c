@@ -72,54 +72,39 @@ void parsePipeline(char *argv[], int argc) {
     int saveOutFD = dup(STDOUT_FILENO);
 
     int rd = 0, wr = 1;
-    int pipeInp[2], pipeOutp[2];
+    int pipeline[2];
 
-    int ind = 0, commandsExecuted = 0;
+    int ind = 0, commandsLeft = countPipes + 1;
     while (ind < argc) {
-        vectorString command = init_vectorString();
-
+        vectorString args = init_vectorString();
         while (ind < argc && strcmp(argv[ind], "|") != 0) {
-            pushbackString(&command, argv[ind]);
+            pushbackString(&args, argv[ind]);
             ind++;
         }
         ind++;
 
-        // first command -> input from stdin
-        //        if (commandsExecuted > 0) {
-        //            // not first command, take input from pipe
-        //            dup2(pipeInp[rd], STDIN_FILENO);
-        //        }
-        // last command -> output to stdout
-        if (commandsExecuted < countPipes) {
-            // not last command, write output to pipe
-            if (pipe(pipeOutp) < 0) {
-                fprintf(stderr, "pipe: failed to create pipe\n");
+        if (commandsLeft == 1) { // last command, output to terminal
+            dup2(saveOutFD, STDOUT_FILENO);
+        }
+        else {
+            if (pipe(pipeline) < 0) {
+                fprintf(stderr, "pipe: error creating pipeline\n");
                 resetIO(saveInFD, saveOutFD);
                 return;
             }
-            dup2(pipeOutp[wr], STDOUT_FILENO);
-            close(pipeOutp[wr]);
+            dup2(pipeline[wr], STDOUT_FILENO);
+            close(pipeline[wr]);
         }
-        else
-            dup2(saveOutFD, STDOUT_FILENO);
+        parseRedir(args.vector, args.size);
+        commandsLeft--;
 
-        parseRedir(command.vector, command.size - 1);
-
-        //        if (commandsExecuted > 0)
-        //            close(pipeInp[rd]);
-        if (commandsExecuted < countPipes) {
-            dup2(pipeOutp[rd], STDIN_FILENO);
-            close(pipeOutp[rd]);
+        if (commandsLeft > 0) {
+            dup2(pipeline[rd], STDIN_FILENO);
+            close(pipeline[rd]);
         }
-        //        else
-        //            dup2(saveInFD, STDIN_FILENO);
-        // pipeInp = pipeOutp
-        //        pipeInp[rd] = pipeOutp[rd];
-        //        pipeInp[wr] = pipeOutp[wr];
-
-        commandsExecuted++;
-        free_vectorString(command);
+        free_vectorString(args);
     }
+
     resetIO(saveInFD, saveOutFD);
 }
 
@@ -128,14 +113,16 @@ void parsePipeline(char *argv[], int argc) {
 //  add return codes
 //  print error to stderr
 
-int parseRedir(char *argv[], int argc) {
+void parseRedir(char *argv[], int argc) {
+    if (argc == 0) return;
+
     vectorString vec = init_vectorString();
     int indIn = -1, indOut = -1;
     for (int i = 0; i < argc; i++) {
         if (strcmp("<", argv[i]) == 0) {
             if (indIn != -1) {
                 fprintf(stderr, "Error: multiple input redirections\n");
-                return 1;
+                return;
             }
             indIn = i;
             i++; // next arg is file name
@@ -143,7 +130,7 @@ int parseRedir(char *argv[], int argc) {
         else if (strcmp(">", argv[i]) == 0 || strcmp(">>", argv[i]) == 0) {
             if (indOut != -1) {
                 fprintf(stderr, "Error: multiple input redirections\n");
-                return 1;
+                return;
             }
             indOut = i;
             i++; // next arg is file name
@@ -158,13 +145,13 @@ int parseRedir(char *argv[], int argc) {
         if (indIn == argc - 1) {
             fprintf(stderr, "Error: expected token after >\n");
             resetIO(saveInFD, saveOutFD);
-            return 1;
+            return;
         }
         int fd = open(argv[indIn + 1], O_RDONLY);
         if (fd == -1) {
             perror("error opening input file");
             resetIO(saveInFD, saveOutFD);
-            return 1;
+            return;
         }
         dup2(fd, STDIN_FILENO);
         close(fd);
@@ -174,7 +161,7 @@ int parseRedir(char *argv[], int argc) {
         if (indOut == argc - 1) {
             fprintf(stderr, "Error: expected token after %s \n", argv[indOut]);
             resetIO(saveInFD, saveOutFD);
-            return 1;
+            return;
         }
         int fd;
         if (strcmp(">", argv[indOut]) == 0)
@@ -184,7 +171,7 @@ int parseRedir(char *argv[], int argc) {
         if (fd == -1) {
             perror("error opening output file");
             resetIO(saveInFD, saveOutFD);
-            return 1;
+            return;
         }
         dup2(fd, STDOUT_FILENO);
         close(fd);
@@ -194,7 +181,6 @@ int parseRedir(char *argv[], int argc) {
     execute(vec.vector, vec.size - 1);
 
     resetIO(saveInFD, saveOutFD);
-    return 0;
 }
 
 void execute(char *argv[], int argc) {

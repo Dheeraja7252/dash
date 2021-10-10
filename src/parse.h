@@ -7,7 +7,7 @@ void parseCommand(char *);
 
 void parsePipeline(char **, int);
 
-int parseRedir(char **, int);
+void parseRedir(char **, int);
 
 void execute(char **, int);
 
