@@ -1,2 +1,4 @@
 all:
-		gcc -o shell main.c src/*.c
+	@echo "Building"
+	gcc -o C-Shell main.c src/*.c
+	@echo "Success"

@@ -109,8 +109,6 @@ void parsePipeline(char *argv[], int argc) {
 }
 
 // TODO:
-//  handle relative file path
-//  add return codes
 //  print error to stderr
 
 void parseRedir(char *argv[], int argc) {
@@ -147,7 +145,14 @@ void parseRedir(char *argv[], int argc) {
             resetIO(saveInFD, saveOutFD);
             return;
         }
-        int fd = open(argv[indIn + 1], O_RDONLY);
+        char filePath[MAX_PATH_LEN];
+        if (argv[indIn + 1][0] == '~') {
+            sprintf(filePath, "%s%s", HOME, argv[indIn + 1] + 1);
+        }
+        else
+            strcpy(filePath, argv[indIn + 1]);
+
+        int fd = open(filePath, O_RDONLY);
         if (fd == -1) {
             perror("error opening input file");
             resetIO(saveInFD, saveOutFD);
@@ -164,10 +169,16 @@ void parseRedir(char *argv[], int argc) {
             return;
         }
         int fd;
-        if (strcmp(">", argv[indOut]) == 0)
-            fd = open(argv[indOut + 1], O_WRONLY | O_TRUNC | O_CREAT, 0644);
+        char filePath[MAX_PATH_LEN];
+        if (argv[indOut + 1][0] == '~') {
+            sprintf(filePath, "%s%s", HOME, argv[indOut + 1] + 1);
+        }
         else
-            fd = open(argv[indOut + 1], O_WRONLY | O_APPEND | O_CREAT, 0644);
+            strcpy(filePath, argv[indOut + 1]);
+        if (strcmp(">", argv[indOut]) == 0)
+            fd = open(filePath, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+        else
+            fd = open(filePath, O_WRONLY | O_APPEND | O_CREAT, 0644);
         if (fd == -1) {
             perror("error opening output file");
             resetIO(saveInFD, saveOutFD);
