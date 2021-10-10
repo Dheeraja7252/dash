@@ -20,13 +20,14 @@ void pushbackJob(vectorJob *vec, int pid, char *pname) {
         vec->vector = realloc(vec->vector, 2 * vec->capacity * (sizeof(struct job)));
         vec->capacity = 2 * vec->capacity;
     }
-    vec->vector[vec->size].pname = (char *) malloc(strlen(pname));
+    vec->vector[vec->size].pname = (char *) malloc(strlen(pname) + 1);
     if (vec->vector[vec->size].pname == NULL) {
         perror("malloc");
         return;
     }
     strcpy(vec->vector[vec->size].pname, pname);
     vec->vector[vec->size].pid = pid;
+    vec->vector[vec->size].jobNum = vec->size + 1;
     vec->size++;
 }
 
@@ -55,6 +56,7 @@ void removeJob(vectorJob *vec, int pid) {
     }
     vec->vector[vec->size - 1].pname = NULL;
     vec->vector[vec->size - 1].pid = 0;
+    vec->vector[vec->size - 1].jobNum = 0;
     vec->size--;
 }
 

@@ -3,6 +3,7 @@
 
 struct job {
     int pid;
+    int jobNum;
     char *pname;
 };
 

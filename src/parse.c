@@ -12,7 +12,7 @@
 #include "pinfo.h"
 #include "systemCommands.h"
 #include "history.h"
-#include "sig.h"
+#include "jobs.h"
 
 void resetIO(int saveInFD, int saveOutFD) {
     dup2(saveInFD, STDIN_FILENO);
@@ -45,7 +45,11 @@ void parseCommand(char *command) {
     vectorString vec = tokenize(command, " \n\t");
     //    pushbackString(&vec, (char *) NULL);
     //    execute(vec.vector, vec.size - 1);
-    parseRedir(vec.vector, vec.size);
+    if (vec.size == 0) {
+        free_vectorString(vec);
+        return;
+    }
+    parsePipeline(vec.vector, vec.size);
     free_vectorString(vec);
 }
 
@@ -55,12 +59,68 @@ void parsePipeline(char *argv[], int argc) {
         if (strcmp("|", argv[i]) == 0)
             countPipes++;
     }
-    if (countPipes == 0) { // no pipelines
+    if (strcmp(argv[argc - 1], "|") == 0) {
+        printf("shell: pipe syntax error\n");
+        return;
+    }
+    if (countPipes == 0) {
+        // no pipelines
         parseRedir(argv, argc);
         return;
     }
+    int saveInFD = dup(STDIN_FILENO);
+    int saveOutFD = dup(STDOUT_FILENO);
 
-    // implement pipeline
+    int rd = 0, wr = 1;
+    int pipeInp[2], pipeOutp[2];
+
+    int ind = 0, commandsExecuted = 0;
+    while (ind < argc) {
+        vectorString command = init_vectorString();
+
+        while (ind < argc && strcmp(argv[ind], "|") != 0) {
+            pushbackString(&command, argv[ind]);
+            ind++;
+        }
+        ind++;
+
+        // first command -> input from stdin
+        //        if (commandsExecuted > 0) {
+        //            // not first command, take input from pipe
+        //            dup2(pipeInp[rd], STDIN_FILENO);
+        //        }
+        // last command -> output to stdout
+        if (commandsExecuted < countPipes) {
+            // not last command, write output to pipe
+            if (pipe(pipeOutp) < 0) {
+                fprintf(stderr, "pipe: failed to create pipe\n");
+                resetIO(saveInFD, saveOutFD);
+                return;
+            }
+            dup2(pipeOutp[wr], STDOUT_FILENO);
+            close(pipeOutp[wr]);
+        }
+        else
+            dup2(saveOutFD, STDOUT_FILENO);
+
+        parseRedir(command.vector, command.size - 1);
+
+        //        if (commandsExecuted > 0)
+        //            close(pipeInp[rd]);
+        if (commandsExecuted < countPipes) {
+            dup2(pipeOutp[rd], STDIN_FILENO);
+            close(pipeOutp[rd]);
+        }
+        //        else
+        //            dup2(saveInFD, STDIN_FILENO);
+        // pipeInp = pipeOutp
+        //        pipeInp[rd] = pipeOutp[rd];
+        //        pipeInp[wr] = pipeOutp[wr];
+
+        commandsExecuted++;
+        free_vectorString(command);
+    }
+    resetIO(saveInFD, saveOutFD);
 }
 
 // TODO:
@@ -168,8 +228,20 @@ void execute(char *argv[], int argc) {
         history(argv, argc);
         return;
     }
+    if (strcmp(argv[0], "jobs") == 0) {
+        jobs(argv, argc);
+        return;
+    }
     if (strcmp(argv[0], "sig") == 0) {
         sig(argv, argc);
+        return;
+    }
+    if (strcmp(argv[0], "bg") == 0) {
+        bg(argv, argc);
+        return;
+    }
+    if (strcmp(argv[0], "fg") == 0) {
+        fg(argv, argc);
         return;
     }
     if (strcmp(argv[0], "exit") == 0) {
